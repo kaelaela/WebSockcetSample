@@ -3,8 +3,6 @@ package me.kaelaela.websocketsample;
 import android.os.Handler;
 import android.os.Looper;
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -14,21 +12,23 @@ import okhttp3.ws.WebSocket;
 import okhttp3.ws.WebSocketCall;
 import okhttp3.ws.WebSocketListener;
 import okio.Buffer;
-import okio.ByteString;
 import rx.Observable;
 import rx.Subscriber;
 import rx.schedulers.Schedulers;
 
 public class WebSocketClient implements WebSocketListener {
 
-    private final ExecutorService writeExecutor = Executors.newSingleThreadExecutor();
     private WebSocket webSocket;
     private MessageListAdapter adapter;
+    private Callback callback;
 
-    public WebSocketClient() {
-        OkHttpClient client = new OkHttpClient.Builder()
-                .build();
+    public WebSocketClient(Callback callback) {
+        this.callback = callback;
+        initSocket();
+    }
 
+    private void initSocket() {
+        OkHttpClient client = new OkHttpClient.Builder().build();
         String url = "wss://echo.websocket.org";
         Request request = new Request.Builder().url(url).build();
         WebSocketCall.create(client, request).enqueue(this);
@@ -39,6 +39,10 @@ public class WebSocketClient implements WebSocketListener {
         this.adapter = adapter;
     }
 
+    public void open() {
+        initSocket();
+    }
+
     public void sendMessage(final String text) throws IOException {
         adapter.setMessage(text);
         Observable.create(new Observable.OnSubscribe<String>() {
@@ -47,10 +51,25 @@ public class WebSocketClient implements WebSocketListener {
                 try {
                     webSocket.sendMessage(RequestBody.create(WebSocket.TEXT, text));
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    subscriber.onError(e);
                 }
             }
-        }).subscribeOn(Schedulers.io()).subscribe();
+        }).subscribeOn(Schedulers.io()).subscribe(new Subscriber<String>() {
+            @Override
+            public void onCompleted() {
+                //nop
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                e.printStackTrace();
+            }
+
+            @Override
+            public void onNext(String s) {
+                System.out.println("send message:" + s);
+            }
+        });
     }
 
     public void close() {
@@ -60,43 +79,50 @@ public class WebSocketClient implements WebSocketListener {
                 try {
                     webSocket.close(1000, "Goodbye!");
                 } catch (IOException e) {
-                    e.printStackTrace();
+                    subscriber.onError(e);
                 }
             }
-        }).subscribeOn(Schedulers.io()).subscribe();
-    }
-
-    @Override
-    public void onOpen(final WebSocket webSocket, Response response) {
-        this.webSocket = webSocket;
-        writeExecutor.execute(new Runnable() {
+        }).subscribeOn(Schedulers.io()).subscribe(new Subscriber<Void>() {
             @Override
-            public void run() {
-                try {
-                    webSocket.sendMessage(RequestBody.create(WebSocket.TEXT, "Hello..."));
-                    webSocket.sendMessage(RequestBody.create(WebSocket.TEXT, "...World!"));
-                    webSocket.sendMessage(RequestBody.create(WebSocket.BINARY, ByteString.decodeHex("deadbeef")));
-                } catch (IOException e) {
-                    System.err.println("Unable to send messages: " + e.getMessage());
-                }
+            public void onCompleted() {
+                //nop
+            }
+
+            @Override
+            public void onError(Throwable e) {
+                e.printStackTrace();
+            }
+
+            @Override
+            public void onNext(Void aVoid) {
+                System.out.println("closed WebSocket.");
             }
         });
     }
 
     @Override
+    public void onOpen(final WebSocket webSocket, Response response) {
+        this.webSocket = webSocket;
+        setMessageOnUiThread("OPEN: Hello World!");
+        callback.onOpen();
+    }
+
+    @Override
     public void onFailure(IOException e, Response response) {
         e.printStackTrace();
-        writeExecutor.shutdown();
+        setMessageOnUiThread("ERROR: " + e.getMessage());
+        callback.onError();
     }
 
     @Override
     public void onMessage(ResponseBody message) throws IOException {
         if (message.contentType() == WebSocket.TEXT) {
-            setMessageOnUiThread(message.string());
+            setResponseOnUiThread(message.string());
         } else {
             System.out.println("MESSAGE: " + message.source().readByteString().hex());
         }
         message.close();
+        callback.onMessage();
     }
 
     @Override
@@ -106,9 +132,8 @@ public class WebSocketClient implements WebSocketListener {
 
     @Override
     public void onClose(int code, String reason) {
-        setResponseOnUiThread("CLOSE: " + code + " " + reason);
-        System.out.println("CLOSE: " + code + " " + reason);
-        writeExecutor.shutdown();
+        setMessageOnUiThread("CLOSE: " + reason);
+        callback.onClose();
     }
 
     private void setMessageOnUiThread(final String message) {
@@ -124,8 +149,18 @@ public class WebSocketClient implements WebSocketListener {
         new Handler(Looper.getMainLooper()).post(new Runnable() {
             @Override
             public void run() {
-                adapter.setResponse("Echo >" + message);
+                adapter.setResponse("Echo >>> " + message);
             }
         });
+    }
+
+    public interface Callback {
+        void onOpen();
+
+        void onMessage();
+
+        void onClose();
+
+        void onError();
     }
 }

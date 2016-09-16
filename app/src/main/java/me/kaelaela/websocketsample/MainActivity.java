@@ -8,15 +8,24 @@ import android.view.View;
 import android.widget.EditText;
 import java.io.IOException;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements WebSocketClient.Callback{
 
+    private RecyclerView recyclerView;
     private WebSocketClient client;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        client = new WebSocketClient();
+        client = new WebSocketClient(this);
+
+        findViewById(R.id.open_button).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                client.open();
+            }
+        });
+
         final EditText editText = (EditText) findViewById(R.id.message);
         findViewById(R.id.emit_button).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -25,6 +34,8 @@ public class MainActivity extends AppCompatActivity {
                     client.sendMessage(editText.getText().toString());
                 } catch (IOException e) {
                     e.printStackTrace();
+                } finally {
+                    editText.setText("");
                 }
             }
         });
@@ -39,10 +50,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initRecyclerView() {
-        RecyclerView recyclerView = (RecyclerView) findViewById(R.id.list);
+        recyclerView = (RecyclerView) findViewById(R.id.list);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        MessageListAdapter adapter = new MessageListAdapter();
-        recyclerView.setAdapter(adapter);
-        client.setAdapter(adapter);
+        recyclerView.setAdapter(new MessageListAdapter());
+        client.setAdapter((MessageListAdapter) recyclerView.getAdapter());
+    }
+
+    @Override
+    public void onOpen() {
+        recyclerView.smoothScrollToPosition(recyclerView.getAdapter().getItemCount());
+    }
+
+    @Override
+    public void onMessage() {
+        recyclerView.smoothScrollToPosition(recyclerView.getAdapter().getItemCount());
+    }
+
+    @Override
+    public void onClose() {
+        recyclerView.smoothScrollToPosition(recyclerView.getAdapter().getItemCount());
+    }
+
+    @Override
+    public void onError() {
+        recyclerView.smoothScrollToPosition(recyclerView.getAdapter().getItemCount());
     }
 }

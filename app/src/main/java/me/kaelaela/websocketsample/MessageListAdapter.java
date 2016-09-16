@@ -14,12 +14,12 @@ public class MessageListAdapter extends RecyclerView.Adapter<RecyclerView.ViewHo
 
     public void setMessage(String message) {
         mMessageList.add(message);
-        notifyDataSetChanged();
+        notifyItemInserted(mMessageList.size());
     }
 
     public void setResponse(String message) {
-        mMessageList.add("> " + message);
-        notifyDataSetChanged();
+        mMessageList.add(message);
+        notifyItemInserted(mMessageList.size());
     }
 
     @Override
