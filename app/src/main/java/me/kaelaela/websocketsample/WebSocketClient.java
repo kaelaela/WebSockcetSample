@@ -8,9 +8,8 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
-import okhttp3.ws.WebSocket;
-import okhttp3.ws.WebSocketCall;
-import okhttp3.ws.WebSocketListener;
+import okhttp3.WebSocket;
+import okhttp3.WebSocketListener;
 import okio.Buffer;
 import rx.Observable;
 import rx.Subscriber;
@@ -31,7 +30,7 @@ public class WebSocketClient implements WebSocketListener {
         OkHttpClient client = new OkHttpClient.Builder().build();
         String url = "wss://echo.websocket.org";
         Request request = new Request.Builder().url(url).build();
-        WebSocketCall.create(client, request).enqueue(this);
+        client.newWebSocketCall(request).enqueue(this);
         client.dispatcher().executorService().shutdown();
     }
 
