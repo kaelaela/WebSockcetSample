@@ -10,9 +10,10 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import okhttp3.WebSocket;
 import okhttp3.WebSocketListener;
-import okio.Buffer;
+import okio.ByteString;
 import rx.Observable;
 import rx.Subscriber;
+import rx.functions.Func1;
 import rx.schedulers.Schedulers;
 
 public class WebSocketClient implements WebSocketListener {
@@ -42,16 +43,17 @@ public class WebSocketClient implements WebSocketListener {
         initSocket();
     }
 
-    public void sendMessage(final String text) throws IOException {
+    public void sendMessage(final String text) {
         adapter.setMessage(text);
-        Observable.create(new Observable.OnSubscribe<String>() {
+        Observable.just(text).map(new Func1<String, String>() {
             @Override
-            public void call(Subscriber<? super String> subscriber) {
+            public String call(String s) {
                 try {
-                    webSocket.sendMessage(RequestBody.create(WebSocket.TEXT, text));
+                    webSocket.sendMessage(RequestBody.create(WebSocket.TEXT, s));
                 } catch (IOException e) {
-                    subscriber.onError(e);
+                    e.printStackTrace();
                 }
+                return s;
             }
         }).subscribeOn(Schedulers.io()).subscribe(new Subscriber<String>() {
             @Override
@@ -72,14 +74,15 @@ public class WebSocketClient implements WebSocketListener {
     }
 
     public void close() {
-        Observable.create(new Observable.OnSubscribe<Void>() {
+        Observable.just(null).map(new Func1<Object, Void>() {
             @Override
-            public void call(Subscriber<? super Void> subscriber) {
+            public Void call(Object o) {
                 try {
                     webSocket.close(1000, "Goodbye!");
                 } catch (IOException e) {
-                    subscriber.onError(e);
+                    e.printStackTrace();
                 }
+                return null;
             }
         }).subscribeOn(Schedulers.io()).subscribe(new Subscriber<Void>() {
             @Override
@@ -107,13 +110,6 @@ public class WebSocketClient implements WebSocketListener {
     }
 
     @Override
-    public void onFailure(IOException e, Response response) {
-        e.printStackTrace();
-        setMessageOnUiThread("ERROR: " + e.getMessage());
-        callback.onError();
-    }
-
-    @Override
     public void onMessage(ResponseBody message) throws IOException {
         if (message.contentType() == WebSocket.TEXT) {
             setResponseOnUiThread(message.string());
@@ -125,14 +121,21 @@ public class WebSocketClient implements WebSocketListener {
     }
 
     @Override
-    public void onPong(Buffer payload) {
-        System.out.println("PONG: " + payload.readUtf8());
+    public void onPong(ByteString byteString) {
+        System.out.println("PONG: " + byteString);
     }
 
     @Override
     public void onClose(int code, String reason) {
         setMessageOnUiThread("CLOSE: " + reason);
         callback.onClose();
+    }
+
+    @Override
+    public void onFailure(Throwable throwable, Response response) {
+        throwable.printStackTrace();
+        setMessageOnUiThread("ERROR: " + throwable.getMessage());
+        callback.onError();
     }
 
     private void setMessageOnUiThread(final String message) {
@@ -153,7 +156,7 @@ public class WebSocketClient implements WebSocketListener {
         });
     }
 
-    public interface Callback {
+    interface Callback {
         void onOpen();
 
         void onMessage();

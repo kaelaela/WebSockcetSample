@@ -6,9 +6,8 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.view.View;
 import android.widget.EditText;
-import java.io.IOException;
 
-public class MainActivity extends AppCompatActivity implements WebSocketClient.Callback{
+public class MainActivity extends AppCompatActivity implements WebSocketClient.Callback {
 
     private RecyclerView recyclerView;
     private WebSocketClient client;
@@ -30,13 +29,8 @@ public class MainActivity extends AppCompatActivity implements WebSocketClient.C
         findViewById(R.id.emit_button).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                try {
-                    client.sendMessage(editText.getText().toString());
-                } catch (IOException e) {
-                    e.printStackTrace();
-                } finally {
-                    editText.setText("");
-                }
+                client.sendMessage(editText.getText().toString());
+                editText.setText("");
             }
         });
 
